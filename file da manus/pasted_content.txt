@@ -1,0 +1,149 @@
+Il mio obiettivo è rifattorizzare e riprogettare una funzionalità critica della mia applicazione Laravel chiamata "AI Co-Pilota". Questa funzionalità serve come assistente in tempo reale per consulenti (medici, avvocati, etc.) durante le sessioni con i clienti. Il sistema deve trascrivere la conversazione, fornire suggerimenti pertinenti tramite ricerche web e analisi AI, e generare report finali. L'implementazione attuale è afflitta da gravi conflitti JavaScript, errori backend e presenta un'interfaccia utente (UI) confusa e poco moderna.
+
+L'obiettivo è ottenere un codice stabile, production-ready, scalabile e con una UI/UX moderna, pulita e intuitiva, ispirata a interfacce come ChatGPT.
+
+CONTESTO E PROBLEMA ATTUALE
+
+L'applicazione è costruita su Laravel e utilizza un tema complesso per il pannello "vendor". L'aggiunta della pagina del Co-Pilota ha generato una serie di problemi irrisolvibili tramite debug tradizionale:
+
+Conflitti JavaScript persistenti: Caricamenti multipli di jQuery e app.js dal layout principale e dalla pagina specifica creano un ambiente instabile. Errori come $ is not definedeEcho is not a constructor` appaiono costantemente, impedendo l'esecuzione corretta degli script.
+
+Errori Backend intermittenti: La comunicazione con l'API di Google Speech-to-Text genera errori 500 Internal Server Error, probabilmente a causa di configurazioni errate o dati malformati inviati dal frontend a seguito dei crash JavaScript.
+
+UI/UX Complessa e Datata: L'attuale interfaccia (vedi image_ec9060.jpg) è sovraccarica, con troppi riquadri e pulsanti. Non è intuitiva e non favorisce la concentrazione durante un meeting.
+
+Logica AI Rigida: Il sistema attuale non è scalabile per gestire le diverse specializzazioni dei consulenti.
+
+STACK TECNOLOGICO E AMBIENTE
+
+Framework: Laravel (v9.x o v10.x)
+
+Server: Ubuntu 20.04 con Nginx (gestito da aaPanel)
+
+PHP: 8.3
+
+Node.js: v22.17.1, npm 10.9.2
+
+Database: MySQL
+
+Frontend: Laravel Mix, jQuery (dal tema), Bootstrap, Laravel Echo, Pusher.
+
+Servizi Esterni (AI): Google Speech-to-Text, Google Search, Gemini, OpenAI, DeepSeek.
+
+REQUISITI FUNZIONALI CHIAVE
+
+Workflow "Meeting in Presenza":
+
+Un pulsante "Avvia Meeting" apre un popup (usando SweetAlert2) per inserire la Partita IVA/Codice Fiscale del cliente.
+
+Il sistema cerca il cliente nel database (users table).
+
+Se il cliente non esiste, un secondo popup permette di crearlo al volo.
+
+Una volta confermato il cliente, il meeting inizia: viene creato un record nella tabella meetings e si avvia la sessione AI.
+
+Trascrizione Audio in Tempo Reale:
+
+Il sistema deve catturare l'audio dal microfono del consulente.
+
+L'audio deve essere inviato in chunk all'API di Google Cloud Speech-to-Text per la trascrizione in italiano.
+
+La trascrizione ricevuta deve essere usata come input per la logica AI e mostrata in una sezione della UI.
+
+Logica Multi-AI Intelligente e Scalabile:
+
+Il sistema deve essere consapevole del tipo di consulente (campo specialization nel modello Vendor). Esempio: "Consulente del Lavoro", "Medico", "Avvocato".
+
+Il prompt inviato ai modelli AI per analisi e suggerimenti deve essere dinamicamente adattato in base a questa specializzazione.
+
+Ricerche Web con DeepSeek:
+
+Questo è un requisito fondamentale. Per le ricerche web automatiche basate sulla trascrizione, il sistema deve obbligatoriamente utilizzare l'API di DeepSeek. Le altre API (Google Search, Gemini, OpenAI) non devono essere usate per questo scopo, in quanto i test hanno dimostrato che DeepSeek fornisce risultati più pertinenti e dettagliati per il caso d'uso specifico (es. ricerca di bandi e finanziamenti).
+
+La query di ricerca deve essere ottimizzata partendo dalla trascrizione e dal contesto del cliente (settore di attività).
+
+Gestione di Sessioni Lunghe:
+
+I meeting possono durare anche 2 ore. Il sistema di gestione della conversationHistory deve essere robusto e non superare i limiti di token delle API. Implementare una strategia di "rolling summary" o di chunking intelligente del contesto inviato alle AI.
+
+Report Finale:
+
+Al termine del meeting, il sistema deve generare un report completo (MeetingReport) che includa la trascrizione completa, un riassunto generato dall'AI, una lista di task e le note del consulente.
+
+REQUISITI DI UI/UX E DESIGN (MOLTO IMPORTANTE)
+
+L'interfaccia attuale deve essere completamente ridisegnata.
+
+Ispirazione: Pulita, minimale e funzionale, come quella di ChatGPT (vedi image_ec93e9.jpg).
+
+Layout Principale:
+
+Un'area di contenuto principale e centrale.
+
+Un menu laterale a scomparsa (hamburger menu) per le opzioni secondarie (storico, impostazioni, ecc.), che non deve essere sempre visibile.
+
+Un'area di input testuale in basso, sempre presente, per porre domande dirette all'AI.
+
+Flusso durante il Meeting:
+
+L'interfaccia deve essere focalizzata sulla conversazione e sui suggerimenti.
+
+I suggerimenti generati dall'AI (specialmente i risultati di DeepSeek) devono apparire in modo chiaro e non invasivo, magari in una timeline o come card interattive.
+
+La trascrizione completa dovrebbe essere visibile ma non occupare lo spazio principale; potrebbe essere in un'area a scorrimento o accessibile tramite un pulsante.
+
+Componenti:
+
+Sostituire i molteplici box e pulsanti con un design più coeso. Utilizzare modali (come SweetAlert2, già presente) per le azioni che richiedono input (come l'avvio del meeting).
+
+Creare un'esperienza utente fluida e moderna, con animazioni leggere e transizioni fluide.
+
+SUGGERIMENTI E FUNZIONALITÀ INNOVATIVE (PROPOSTE)
+
+Sistema di Prompting Dinamico: Invece di avere un unico prompt, creare un sistema (es. una tabella ai_prompts nel DB) dove si possono salvare diversi "template" di prompt di sistema, associati a una specialization. All'avvio della sessione, il controller carica il prompt corretto per quel tipo di consulente.
+
+Gestione Trascrizione Avanzata: Invece di accumulare testo in una variabile JS, inviare i chunk di trascrizione al backend (via API o Pusher) e salvarli temporaneamente (es. in Cache/Redis). Questo previene la perdita di dati in caso di refresh della pagina e alleggerisce il client.
+
+Architettura Frontend Stabile: Risolvere il conflitto JavaScript alla radice. La soluzione migliore è integrare gli script del Co-Pilota nel processo di build esistente del tema. Il file webpack.mix.js deve essere configurato per usare il jQuery globale fornito dal tema (.externals) e i file Blade devono caricare gli script nell'ordine corretto usando @section('script'), assicurando che app.js e ai_copilot_logic.js vengano caricati DOPO jquery.min.js e gli altri plugin del tema.
+
+FILE DI CODICE DI RIFERIMENTO
+
+Ti sono stati forniti tutti i file rilevanti in un repository GitHub per darti il contesto completo della logica attuale:
+
+URL Repository: https://github.com/raoudisalah/consulioplus
+
+File Chiave da Analizzare:
+
+resources/views/vendors/ai-support.blade.php (UI/UX attuale e logica frontend)
+
+resources/views/vendors/layout.blade.php (Layout principale che causa i conflitti)
+
+resources/views/vendors/partials/scripts.blade.php (File che carica gli script conflittuali)
+
+resources/js/ai_copilot_logic.js (Logica JS del Co-Pilota)
+
+resources/js/bootstrap.js (Configurazione di Laravel Echo)
+
+webpack.mix.js (Configurazione della compilazione asset)
+
+app/Http/Controllers/AiCoPilotController.php (Tutta la logica backend)
+
+routes/web.php (Rotte dell'applicazione)
+
+.env.example (per la struttura delle chiavi API)
+
+ISTRUZIONI FINALI E DELIVERABLE
+
+Richiedo il codice completo e funzionante per i seguenti file, modificati o creati ex novo, per realizzare la visione descritta:
+
+resources/views/vendors/ai-support.blade.php: Completamente riprogettato con la nuova UI/UX pulita e minimale.
+
+app/Http/Controllers/AiCoPilotController.php: Rifattorizzato per essere più robusto, scalabile (gestione specializzazioni) e per usare DeepSeek per le ricerche web.
+
+resources/js/ai_copilot_logic.js: Riscritto per funzionare con la nuova UI e senza errori.
+
+webpack.mix.js: Modificato per risolvere i conflitti di dipendenza, in particolare con jQuery.
+
+Qualsiasi altro file di supporto (es. CSS, altri file JS) che ritieni necessario per implementare la nuova interfaccia.
+
+Il codice finale deve essere di alta qualità, commentato nei punti chiave, sicuro, performante e pronto per essere messo online. Grazie.
